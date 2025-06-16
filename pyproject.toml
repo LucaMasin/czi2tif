@@ -1,7 +1,7 @@
 [project]
 name = "czi2tif"
 version = "0.1.0"
-description = "Add your description here"
+description = "Convert czi files to tif files, inclusive of scaling information to their usage in Fiji/ImageJ."
 readme = "README.md"
 authors = [
     { name = "LucaMasin", email = "luca.mas93@gmail.com" }
