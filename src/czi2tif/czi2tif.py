@@ -18,8 +18,8 @@ def main(czi_input, output, recursive, verbose, quiet, log_file):
     
     # Validate mutually exclusive options
     if verbose and quiet:
-        click.echo("Error: --verbose and --quiet options cannot be used together", err=True)
-        return
+        click.echo("--verbose and --quiet options cannot be used together. Overriding --quiet.")
+        quiet = False
     
     # Initialize logging
     if quiet:
