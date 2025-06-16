@@ -1,6 +1,6 @@
 import click
 from pathlib import Path
-
+from czi2tif.read import process_file
 
 @click.command()
 @click.argument("czi_input", type=click.Path(exists=True, file_okay=True, dir_okay=True))
@@ -30,6 +30,8 @@ def main(czi_input, output, recursive):
 
         for czi_file in czi_files:
             click.echo(f"Converting {czi_file} to {output}")
-            
+            process_file(czi_file)
+
     elif is_input_file:
         click.echo(f"Converting {czi_input} to {output}")
+        process_file(czi_input)
