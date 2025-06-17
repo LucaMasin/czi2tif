@@ -11,6 +11,13 @@
             "request": "launch",
             "module": "czi2tif",
             "args": ["/mnt/p/Explant_revision/20250612 txn explants/czi"]
+        },
+        {
+            "name": "Homogenous multiple scenes",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "czi2tif",
+            "args": ["/mnt/p/2022 11 23 ATeam DIV14 WT and Cre/Biosensor/Cre_14DIV_1dpi-axotomy-01_processed.czi"]
         }
     ]
 }
