@@ -63,19 +63,19 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, float, float]:
         return final_resolution
 
 
-def has_scenes(czi_shape: CziShape) -> bool:
+def has_scenes(czi_dims: str) -> bool:
     """Check if the CZI file has multiple scenes."""
-    return "S" in czi_shape[0]
+    return "S" in czi_dims
 
 
-def has_mosaics(czi_shape: CziShape) -> bool:
+def has_mosaics(czi_dims: str) -> bool:
     """Check if the CZI file has mosaics."""
-    return any("M" in entry for entry in czi_shape)
+    return "M" in czi_dims
 
 
 def has_stacks(czi_shape: CziShape) -> bool:
-    """Check if the CZI file has stacks."""
-    return "Z" in czi_shape[0]
+        """Check if the CZI file has stacks."""
+        return "Z" in czi_shape[0]
 
 
 def process_file(czi_file: Pathlike) -> None:
@@ -89,6 +89,8 @@ def process_file(czi_file: Pathlike) -> None:
         resolution = get_resolution(czi.meta)
         logger.info(f"Resolution extracted: {resolution}")
 
+        czi_dims = czi.dims
+
         czi_shape: CziShape = czi.get_dims_shape()
         if len(czi_shape) == 1:
             logger.info(f"Dimensions of file: {czi_shape}")
@@ -98,8 +100,8 @@ def process_file(czi_file: Pathlike) -> None:
                 logger.info(f"Entry {n}: {entry}")
 
         is_homogenous = True
-        if has_scenes(czi_shape):
-            logger.debug("Detected multiple scenes")
+        if has_scenes(czi_dims):
+            logger.info("Detected multiple scenes")
             if len(czi_shape) > 1 and len(czi_shape) != czi_shape[0]["S"][-1]:
                 logger.debug("Dimensions are not homogenous across scenes")
                 is_homogenous = False
@@ -107,8 +109,10 @@ def process_file(czi_file: Pathlike) -> None:
                 logger.debug("Dimensions are homogenous across scenes")
             else:
                 logger.debug("Single scene file")
+        else:
+            logger.info("File does not contain multiple scenes")
 
-        if has_mosaics(czi_shape):
+        if has_mosaics(czi_dims):
             num_mosaics = sum(1 for entry in czi_shape if "M" in entry)
             logger.info(
                 f"File contains mosaics ({num_mosaics} out of {len(czi_shape)} entries)"
@@ -116,7 +120,7 @@ def process_file(czi_file: Pathlike) -> None:
         else:
             logger.info("File does not contain mosaics")
 
-        if has_stacks(czi_shape):
+        if has_stacks(czi_dims):
             logger.info("File contains stacks")
         else:
             logger.info("File does not contain stacks")
