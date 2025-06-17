@@ -2,8 +2,12 @@ from typing import Union, Tuple, List, Dict
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
+import numpy as np
 from aicspylibczi import CziFile
+from tifffile import imwrite, RESUNIT
+
 from czi2tif.logging import configure_module_logger
+from czi2tif.export import ExportParams
 
 # Set up module logger
 logger = configure_module_logger(__name__)
@@ -24,7 +28,7 @@ def read_czi(czi_file: Pathlike) -> CziFile:
         raise
 
 
-def get_resolution(metadata: ET.Element) -> Tuple[float, float, float]:
+def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
     """Get the resolution from the czi metadata."""
     logger.debug("Extracting resolution from CZI metadata")
 
@@ -44,22 +48,27 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, float, float]:
         res_y = float(distance_element.text)  # type: ignore
         logger.debug(f"Found Y resolution: {res_y}")
 
+        # convert to pixels per micron
+        res_y = 1 / (res_y * 1e6)
+
         try:
             distance_element = root.find(".//Distance[@Id='Z']/Value")
             res_z = float(distance_element.text) if distance_element is not None else 1
             logger.debug(f"Found Z resolution: {res_z}")
-        except (AttributeError, TypeError):
-            res_z = 1
-            logger.debug("No Z resolution found, using default value of 1")
-
-        # convert to pixels per micron
-        res_y = 1 / (res_y * 1e6)
-        res_z = 1 / (res_z * 1e6)
-
-        final_resolution = (res_x, res_y, res_z)
-        logger.info(
+            # convert to pixels per micron
+            res_z = 1 / (res_z * 1e6)
+            final_resolution = (res_x, res_y, res_z)
+            logger.info(
             f"Extracted resolution (pixels/micron): X={res_x:.6f}, Y={res_y:.6f}, Z={res_z:.6f}"
         )
+        except (AttributeError, TypeError):
+            final_resolution = (res_x, res_y)
+            logger.debug("No Z resolution found, using 2D resolution")
+            logger.info(
+                f"Extracted resolution (pixels/micron): X={res_x:.6f}, Y={res_y:.6f}"
+            )
+
+
         return final_resolution
 
 
@@ -78,9 +87,18 @@ def has_stacks(czi_shape: CziShape) -> bool:
         return "Z" in czi_shape[0]
 
 
-def process_file(czi_file: Pathlike) -> None:
+def get_scene_data(czi: CziFile, entry_index: int) -> Tuple[np.ndarray, list]:
+    """Get the image data from the CZI file."""
+    image_data, dims = czi.read_image(S=entry_index)
+    return image_data, dims
+
+
+def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
     """Process a single CZI file and extract resolution information."""
     logger.info(f"Processing CZI file: {Path(czi_file).name}")
+
+    if isinstance(czi_file, str):
+        czi_file = Path(czi_file)
 
     try:
         czi = read_czi(czi_file)
@@ -127,6 +145,36 @@ def process_file(czi_file: Pathlike) -> None:
 
         # TODO: Add actual TIF conversion logic here
         logger.debug("File processing completed (conversion logic not yet implemented)")
+
+        if has_scenes(czi_dims) and is_homogenous:
+            entry_indexes = range(czi_shape[0]["S"][-1])
+        else:
+            entry_indexes = range(len(czi_shape))
+
+        for entry_index in entry_indexes:
+            if has_mosaics(czi_dims):
+                is_mosaic = entry["M"][-1] > 0
+            else:
+                is_mosaic = False
+
+            if not is_mosaic:
+                logger.info(f"Processing entry {entry_index}")
+                img, dims = get_scene_data(czi, entry_index)
+                logger.info(f"Extracted image data shape: {img.shape}")
+                logger.info(f"Extracted dimensions: {dims}")
+                img = img.squeeze()
+                logger.info(f"Squeezed image data shape: {img.shape}")
+                if len(img.shape) > 3:
+                    logger.debug("Image has more than 3 dimensions, swapping channel and Z axes")
+                    img = np.swapaxes(img, 0, 1)
+                    logger.info(f"Swapped axes image data shape: {img.shape}")
+            
+            export_params.output_dir.mkdir(parents=True, exist_ok=True)
+
+            output_path = export_params.output_dir / f"{Path(czi_file).stem}_{entry_index}.tif"
+            logger.info(f"Exporting to: {output_path}")
+
+            imwrite(output_path, img, resolution=resolution, resolutionunit=RESUNIT.MICROMETER, imagej=True, metadata={"spacing": resolution, "unit": "micron"})
 
     except Exception as e:
         logger.error(f"Error processing file {czi_file}: {e}")
