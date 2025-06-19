@@ -53,7 +53,7 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
 
         try:
             distance_element = root.find(".//Distance[@Id='Z']/Value")
-            res_z = float(distance_element.text) if distance_element is not None else 1
+            res_z = float(distance_element.text) if distance_element is not None and distance_element.text is not None else 1
             logger.debug(f"Found Z resolution: {res_z}")
             # convert to pixels per micron
             res_z = 1 / (res_z * 1e6)
@@ -82,9 +82,9 @@ def has_mosaics(czi_dims: str) -> bool:
     return "M" in czi_dims
 
 
-def has_stacks(czi_shape: CziShape) -> bool:
-        """Check if the CZI file has stacks."""
-        return "Z" in czi_shape[0]
+def has_stacks(czi_dims: str) -> bool:
+    """Check if the CZI file has stacks."""
+    return "Z" in czi_dims
 
 
 def get_scene_data(czi: CziFile, entry_index: int) -> Tuple[np.ndarray, list]:
@@ -174,7 +174,7 @@ def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
             output_path = export_params.output_dir / f"{Path(czi_file).stem}_{entry_index}.tif"
             logger.info(f"Exporting to: {output_path}")
 
-            imwrite(output_path, img, resolution=resolution, resolutionunit=RESUNIT.MICROMETER, imagej=True, metadata={"spacing": resolution, "unit": "micron"})
+            imwrite(output_path, img, resolution=(resolution[0], resolution[1]), resolutionunit=RESUNIT.MICROMETER, imagej=True, metadata={"spacing": resolution, "unit": "micron"})
 
     except Exception as e:
         logger.error(f"Error processing file {czi_file}: {e}")
