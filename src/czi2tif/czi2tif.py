@@ -4,17 +4,25 @@ from czi2tif.read import process_file
 from czi2tif.logging import setup_logging, configure_module_logger
 from czi2tif.export import ExportParams
 
+general_config = {
+    "bit_depth": 16,
+    "verbose": False,
+    "quiet": False,
+    "log_file": None,
+    "output": None,
+}
+
 # Set up module logger
 logger = configure_module_logger(__name__)
 
 @click.command()
 @click.argument("czi_input", type=click.Path(exists=True, file_okay=True, dir_okay=True))
-@click.option("--output", "-o", type=click.Path(), help="Output directory")
+@click.option("--output", "-o", type=click.Path(), help="Output directory", default=general_config["output"])
 @click.option("--recursive", "-r", is_flag=True, help="Convert all czi files in the input directory")
-@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging", default=False)
-@click.option("--quiet", "-q", is_flag=True, help="Disable all logging output", default=False)
+@click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging", default=general_config["verbose"])
+@click.option("--quiet", "-q", is_flag=True, help="Disable all logging output", default=general_config["quiet"])
 @click.option("--log-file", type=click.Path(), help="Path to log file (enables file logging)")
-@click.option("--bit-depth", type=click.Choice(["8", "16", "32"]), help="Bit depth for the output TIF files", default="16")
+@click.option("--bit-depth", "-bd", type=click.Choice(["8", "16", "32"]), help=f"Bit depth for the output TIF files (default: {general_config['bit_depth']})", default=str(general_config['bit_depth']))
 def main(czi_input, output, recursive, verbose, quiet, log_file, bit_depth):
     """Convert CZI files to TIF format with scaling information."""
     
