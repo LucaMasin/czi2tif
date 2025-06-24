@@ -93,6 +93,25 @@ def get_scene_data(czi: CziFile, entry_index: int) -> Tuple[np.ndarray, list]:
     return image_data, dims
 
 
+def get_stack_data(czi: CziFile, scene_index: int) -> Tuple[np.ndarray, list]:
+    """Get the image data from the CZI file."""
+    n_planes = czi.get_dims_shape()[0]["Z"][-1]
+    n_channels = czi.get_dims_shape()[0]["C"][-1]
+    full_image_data = []
+    full_dims = []
+    for plane_index in range(n_planes):
+        channel_image_data = []
+        channel_dims = []
+        for channel_index in range(n_channels):
+            image_data, dims = czi.read_image(S=scene_index, Z=plane_index, C=channel_index)
+            channel_image_data.append(image_data)
+            channel_dims.append(dims)
+        full_image_data.append(channel_image_data)
+        full_dims.append(channel_dims)
+    
+    return np.array(full_image_data), full_dims
+
+
 def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
     """Process a single CZI file and extract resolution information."""
     logger.info(f"Processing CZI file: {Path(czi_file).name}")
@@ -159,14 +178,18 @@ def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
 
             if not is_mosaic:
                 logger.info(f"Processing entry {entry_index}")
-                img, dims = get_scene_data(czi, entry_index)
+                if has_stacks(czi_dims):
+                    img, dims = get_stack_data(czi, entry_index)
+                else:
+                    img, dims = get_scene_data(czi, entry_index)
                 logger.info(f"Extracted image data shape: {img.shape}")
                 logger.info(f"Extracted dimensions: {dims}")
                 img = img.squeeze()
                 logger.info(f"Squeezed image data shape: {img.shape}")
                 if len(img.shape) > 3:
-                    logger.debug("Image has more than 3 dimensions, swapping channel and Z axes")
-                    img = np.swapaxes(img, 0, 1)
+                    # logger.debug("Image has more than 3 dimensions, swapping channel and Z axes")
+                    if not has_stacks(czi_dims):
+                        img = np.swapaxes(img, 0, 1)
                     logger.info(f"Swapped axes image data shape: {img.shape}")
             
             export_params.output_dir.mkdir(parents=True, exist_ok=True)

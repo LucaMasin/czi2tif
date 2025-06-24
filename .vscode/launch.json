@@ -25,6 +25,13 @@
             "request": "launch",
             "module": "czi2tif",
             "args": ["/mnt/p/Dendrites_Anyi/20250320 gfi1ab batch1 RWM/gfi1ab_batch1_RWM_LE_14dpi_F1_RGC_01.czi"]
+        },
+        {
+            "name": "Multiple scenes Z-stack",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "czi2tif",
+            "args": ["/mnt/p/20250522 gfi1ab biocyin"]
         }
     ]
 }
