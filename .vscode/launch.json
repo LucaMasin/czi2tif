@@ -32,6 +32,16 @@
             "request": "launch",
             "module": "czi2tif",
             "args": ["/mnt/p/20250522 gfi1ab biocyin"]
+        },
+        {
+            "name": "Lif file",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "czi2tif",
+            "args": [
+                "/home/luca/python/rgcode2/rgcode/tests/test_data/test_lif/test_lif.lif",
+                "--output", "./test_output",
+            ]
         }
     ]
 }

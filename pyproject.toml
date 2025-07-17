@@ -11,6 +11,7 @@ dependencies = [
     "aicspylibczi>=3.3.1",
     "click>=8.2.1",
     "numpy>=2.3.0",
+    "readlif>=0.6.6",
     "scikit-image>=0.25.2",
     "tifffile==2025.1.10",
 ]

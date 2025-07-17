@@ -8,6 +8,7 @@ from tifffile import imwrite, RESUNIT
 
 from czi2tif.logging import configure_module_logger
 from czi2tif.export import ExportParams
+from readlif.reader import LifFile
 
 # Set up module logger
 logger = configure_module_logger(__name__)
@@ -34,7 +35,7 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
 
     root = ET.ElementTree(metadata).getroot()
 
-    distance_element = root.find(".//Distance[@Id='X']/Value")
+    distance_element = root.find(".//Distance[@Id='X']/Value") # type: ignore
     if distance_element is None:
         logger.warning("No resolution found in metadata. Assuming 1 pixel per micron.")
         return (1, 1, 1)
@@ -44,7 +45,7 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
         # convert to pixels per micron
         res_x = 1 / (res_x * 1e6)
 
-        distance_element = root.find(".//Distance[@Id='Y']/Value")
+        distance_element = root.find(".//Distance[@Id='Y']/Value") # type: ignore
         res_y = float(distance_element.text)  # type: ignore
         logger.debug(f"Found Y resolution: {res_y}")
 
@@ -52,7 +53,7 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
         res_y = 1 / (res_y * 1e6)
 
         try:
-            distance_element = root.find(".//Distance[@Id='Z']/Value")
+            distance_element = root.find(".//Distance[@Id='Z']/Value") # type: ignore
             res_z = float(distance_element.text) if distance_element is not None and distance_element.text is not None else 1
             logger.debug(f"Found Z resolution: {res_z}")
             # convert to pixels per micron
@@ -112,13 +113,8 @@ def get_stack_data(czi: CziFile, scene_index: int) -> Tuple[np.ndarray, list]:
     return np.array(full_image_data), full_dims
 
 
-def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
-    """Process a single CZI file and extract resolution information."""
-    logger.info(f"Processing CZI file: {Path(czi_file).name}")
-
-    if isinstance(czi_file, str):
-        czi_file = Path(czi_file)
-
+# TODO: Clean this up later
+def process_czi(czi_file: Path, export_params: ExportParams) -> None:
     try:
         czi = read_czi(czi_file)
         logger.debug("CZI file loaded successfully")
@@ -202,3 +198,51 @@ def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
     except Exception as e:
         logger.error(f"Error processing file {czi_file}: {e}")
         raise
+
+
+def process_lif(lif_path: Path, export_params: ExportParams) -> None:
+    """Process a single LIF file and extract resolution information."""
+    logger.info(f"Processing LIF file: {Path(lif_path).name}")
+
+    lif_file = LifFile(lif_path)
+
+    for image in lif_file.get_iter_image():
+        logger.info(f"Processing image: {image.name}")
+
+        resolution = image.scale
+        if resolution is None:
+            logger.warning("No resolution found in metadata. Assuming 1 pixel per micron.")
+            resolution = (1, 1, 1)
+        else:
+            logger.info(f"Extracted resolution: {resolution}")
+
+        # Get image data
+        img_data = np.array(image.get_frame())
+        logger.info(f"Image data shape: {img_data.shape}")
+
+        # Export to TIF
+        export_params.output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = export_params.output_dir / f"{Path(lif_path).stem}_{image.name}.tif"
+        logger.info(f"Exporting to: {output_path}")
+
+        imwrite(output_path, img_data, resolution=(resolution[0], resolution[1]), resolutionunit=RESUNIT.MICROMETER, imagej=True, metadata={"spacing": resolution, "unit": "micron"})
+
+
+
+def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
+    """Process a single CZI file and extract resolution information."""
+    logger.info(f"Processing CZI file: {Path(czi_file).name}")
+
+    if isinstance(czi_file, str):
+        czi_file = Path(czi_file)
+    
+    file_extension = czi_file.suffix.lower()
+    if file_extension == ".czi":
+        process_czi(czi_file, export_params)
+    elif file_extension == ".lif":
+        process_lif(czi_file, export_params)
+    else:
+        logger.error(f"Unsupported file format: {file_extension}")
+        raise ValueError(f"Unsupported file format: {file_extension}")
+
+    

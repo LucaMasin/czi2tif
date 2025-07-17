@@ -16,15 +16,17 @@ general_config = {
 logger = configure_module_logger(__name__)
 
 @click.command()
-@click.argument("czi_input", type=click.Path(exists=True, file_okay=True, dir_okay=True))
+@click.argument("input", type=click.Path(exists=True, file_okay=True, dir_okay=True))
 @click.option("--output", "-o", type=click.Path(), help="Output directory", default=general_config["output"])
 @click.option("--recursive", "-r", is_flag=True, help="Convert all czi files in the input directory")
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logging", default=general_config["verbose"])
 @click.option("--quiet", "-q", is_flag=True, help="Disable all logging output", default=general_config["quiet"])
 @click.option("--log-file", type=click.Path(), help="Path to log file (enables file logging)")
 @click.option("--bit-depth", "-bd", type=click.Choice(["8", "16", "32"]), help=f"Bit depth for the output TIF files (default: {general_config['bit_depth']})", default=str(general_config['bit_depth']))
-def main(czi_input, output, recursive, verbose, quiet, log_file, bit_depth):
+def main(input, output, recursive, verbose, quiet, log_file, bit_depth):
     """Convert CZI files to TIF format with scaling information."""
+
+    allowed_extensions = (".czi", ".lif")
     
     # Validate mutually exclusive options
     if verbose and quiet:
@@ -46,19 +48,22 @@ def main(czi_input, output, recursive, verbose, quiet, log_file, bit_depth):
         )
     
     logger.info("Starting czi2tif conversion")
-    logger.debug(f"Input: {czi_input}, Output: {output}, Recursive: {recursive}")
+    logger.debug(f"Input: {input}, Output: {output}, Recursive: {recursive}")
 
-    is_input_dir = Path(czi_input).is_dir()
-    is_input_file = Path(czi_input).is_file()
+    is_input_dir = Path(input).is_dir()
+    is_input_file = Path(input).is_file()
 
     if is_input_dir:
         if output is None:
-            output = Path(czi_input) / "tif"
-        logger.info(f"Processing directory: {czi_input}")
+            output = Path(input) / "tif"
+        logger.info(f"Processing directory: {input}")
     elif is_input_file:
+        if not is_input_file or Path(input).suffix.lower() not in allowed_extensions:
+            logger.error(f"Input file must be a CZI or LIF file: {input}")
+            raise ValueError(f"Input file must be a CZI or LIF file: {input}")
         if output is None:
-            output = Path(czi_input).parent / "tif"
-        logger.info(f"Processing file: {czi_input}")
+            output = Path(input).parent / "tif"
+        logger.info(f"Processing file: {input}")
 
     # if not output.exists():
     #     output.mkdir(parents=True, exist_ok=True)
@@ -68,30 +73,29 @@ def main(czi_input, output, recursive, verbose, quiet, log_file, bit_depth):
     export_params = ExportParams(output_dir=Path(output), bit_depth=int(bit_depth))
 
     if is_input_dir:
-        glob_pattern = "**/*.czi" if recursive else "*.czi"
-        logger.debug(f"Using glob pattern: {glob_pattern}")
+        files = []
+        for ext in allowed_extensions:
+            files.extend(Path(input).glob(f"**/*{ext}" if recursive else f"*{ext}"))
+        logger.info(f"Found {len(files)} files to process")
 
-        czi_files = list(Path(czi_input).glob(glob_pattern))
-        logger.info(f"Found {len(czi_files)} CZI files to process")
-
-        for i, czi_file in enumerate(czi_files, 1):
-            logger.info(f"Converting {i}/{len(czi_files)}: {czi_file.name}")
-            logger.debug(f"Processing file: {czi_file} -> {output}")
+        for i, file in enumerate(files, 1):
+            logger.info(f"Converting {i}/{len(files)}: {file.name}")
+            logger.debug(f"Processing file: {file} -> {output}")
             try:
-                process_file(czi_file, export_params)
-                logger.debug(f"Successfully processed: {czi_file.name}")
+                process_file(file, export_params)
+                logger.debug(f"Successfully processed: {file.name}")
             except Exception as e:
-                logger.error(f"Failed to process {czi_file.name}: {e}")
+                logger.error(f"Failed to process {file.name}: {e}")
                 if verbose:
                     logger.exception("Full traceback:")
 
     elif is_input_file:
-        logger.info(f"Converting single file: {Path(czi_input).name}")
+        logger.info(f"Converting single file: {Path(input).name}")
         try:
-            process_file(czi_input, export_params)
+            process_file(input, export_params)
             logger.info("Conversion completed successfully")
         except Exception as e:
-            logger.error(f"Failed to process {Path(czi_input).name}: {e}")
+            logger.error(f"Failed to process {Path(input).name}: {e}")
             if verbose:
                 logger.exception("Full traceback:")
     
