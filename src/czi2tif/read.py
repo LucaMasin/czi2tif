@@ -52,17 +52,24 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
         # convert to pixels per micron
         res_y = 1 / (res_y * 1e6)
 
-        try:
-            distance_element = root.find(".//Distance[@Id='Z']/Value") # type: ignore
-            res_z = float(distance_element.text) if distance_element is not None and distance_element.text is not None else 1
-            logger.debug(f"Found Z resolution: {res_z}")
-            # convert to pixels per micron
-            res_z = 1 / (res_z * 1e6)
-            final_resolution = (res_x, res_y, res_z)
-            logger.info(
-            f"Extracted resolution (pixels/micron): X={res_x:.6f}, Y={res_y:.6f}, Z={res_z:.6f}"
-        )
-        except (AttributeError, TypeError):
+        distance_element = root.find(".//Distance[@Id='Z']/Value") # type: ignore
+        if distance_element is not None and distance_element.text is not None:
+            try:
+                res_z = float(distance_element.text)
+                logger.debug(f"Found Z resolution: {res_z}")
+                # convert to pixels per micron
+                res_z = 1 / (res_z * 1e6)
+                final_resolution = (res_x, res_y, res_z)
+                logger.info(
+                f"Extracted resolution (pixels/micron): X={res_x:.6f}, Y={res_y:.6f}, Z={res_z:.6f}"
+            )
+            except (AttributeError, TypeError, ValueError):
+                final_resolution = (res_x, res_y)
+                logger.debug("Error processing Z resolution, using 2D resolution")
+                logger.info(
+                    f"Extracted resolution (pixels/micron): X={res_x:.6f}, Y={res_y:.6f}"
+                )
+        else:
             final_resolution = (res_x, res_y)
             logger.debug("No Z resolution found, using 2D resolution")
             logger.info(
