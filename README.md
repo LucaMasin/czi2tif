@@ -17,6 +17,8 @@ A fast and reliable CLI tool to convert CZI and LIF microscopy files to TIF form
 
 ## Installation
 
+> **NOTE:** If you're on a managed/restricted system (e.g., Windows without admin access), see the [conda + uv section](#for-restricted-environments-using-conda--uv) below for an alternative installation method.
+
 ### Recommended: Using uv (fastest)
 
 [uv](https://github.com/astral-sh/uv) is the recommended way to install and run `czi2tif`. It's significantly faster than pip and handles Python versions automatically.
@@ -84,6 +86,48 @@ uv run czi2tif --help
 ```bash
 pip install czi2tif
 ```
+
+### For Restricted Environments: Using conda + uv
+
+If you're on a managed system (like Windows with restricted admin access) where installing uv globally is problematic, you can use conda to create an isolated environment with both Python and uv:
+
+#### First, install Miniconda (if you don't have conda already)
+
+1. Download [Miniconda for Windows](https://www.anaconda.com/download/success)
+2. Run the installer - it typically doesn't require admin rights when installing for current user only
+3. During installation, choose "Add Miniconda3 to my PATH environment variable" if asked
+4. Open a new Command Prompt or PowerShell window
+
+#### Then, set up the czi2tif environment
+
+```bash
+# Clone or download the repository first
+git clone https://github.com/LucaMasin/czi2tif.git
+cd czi2tif
+
+# Create and activate the conda environment
+conda env create -f environment.yml
+conda activate czi2tif
+
+# Now use uv within the conda environment
+uv sync
+uv run czi2tif --help
+```
+
+**Alternative without git:**
+```bash
+# Download and extract the ZIP from GitHub, then:
+cd czi2tif
+conda env create -f environment.yml
+conda activate czi2tif
+uv sync
+uv run czi2tif --help
+```
+
+This approach is ideal for:
+- Corporate/managed Windows environments
+- Systems where you don't have admin privileges
+- Situations where the standard uv installation methods don't work
 
 ### Development Installation
 

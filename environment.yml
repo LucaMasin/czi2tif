@@ -1,0 +1,6 @@
+name: czi2tif
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - uv
