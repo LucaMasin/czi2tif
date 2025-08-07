@@ -42,6 +42,13 @@
                 "/home/luca/python/rgcode2/rgcode/tests/test_data/test_lif/test_lif.lif",
                 "--output", "./test_output",
             ]
-        }
+        },
+        {
+            "name": "Epi mosaic",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "czi2tif",
+            "args": ["/home/luca/KULonedrive/Confocal/2025 08 05 Visufarma test/overviews", "-o", "./test_output", "--verbose"]
+        },
     ]
 }

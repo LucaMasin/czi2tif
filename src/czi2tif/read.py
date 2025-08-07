@@ -165,9 +165,6 @@ def process_czi(czi_file: Path, export_params: ExportParams) -> None:
         else:
             logger.info("File does not contain stacks")
 
-        # TODO: Add actual TIF conversion logic here
-        logger.debug("File processing completed (conversion logic not yet implemented)")
-
         if has_scenes(czi_dims) and is_homogenous:
             entry_indexes = range(czi_shape[0]["S"][-1])
         else:
@@ -175,7 +172,7 @@ def process_czi(czi_file: Path, export_params: ExportParams) -> None:
 
         for entry_index in entry_indexes:
             if has_mosaics(czi_dims):
-                is_mosaic = entry["M"][-1] > 0
+                is_mosaic = czi_shape[entry_index]["M"][-1] > 0
             else:
                 is_mosaic = False
 
@@ -194,6 +191,23 @@ def process_czi(czi_file: Path, export_params: ExportParams) -> None:
                     if not has_stacks(czi_dims):
                         img = np.swapaxes(img, 0, 1)
                     logger.info(f"Swapped axes image data shape: {img.shape}")
+            else:
+                bboxes = czi.get_all_mosaic_scene_bounding_boxes()
+                channels = []
+                for channel in range(czi_shape[entry_index]["C"][-1]):
+                    planes = []
+                    if has_stacks(czi_dims):
+                        for plane in range(czi_shape[entry_index]["Z"][-1]):
+                            mosaic_data = czi.read_mosaic(region=tuple([bboxes[0].x, bboxes[0].y, bboxes[0].w, bboxes[0].h]), scale_factor=1, C=channel, Z=plane).squeeze()
+                            planes.append(mosaic_data)
+                    else:
+                        mosaic_data = czi.read_mosaic(region=tuple([bboxes[0].x, bboxes[0].y, bboxes[0].w, bboxes[0].h]), scale_factor=1, C=channel).squeeze()
+                        planes.append(mosaic_data)
+                    channels.append(planes)
+                img = np.array(channels)
+                if not has_stacks(czi_dims):
+                    img = np.swapaxes(img, 0, 1)
+                logger.info(f"Swapped axes image data shape: {img.shape}")
             
             export_params.output_dir.mkdir(parents=True, exist_ok=True)
 
