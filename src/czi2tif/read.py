@@ -35,7 +35,7 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
 
     root = ET.ElementTree(metadata).getroot()
 
-    distance_element = root.find(".//Distance[@Id='X']/Value") # type: ignore
+    distance_element = root.find(".//Distance[@Id='X']/Value")  # type: ignore
     if distance_element is None:
         logger.warning("No resolution found in metadata. Assuming 1 pixel per micron.")
         return (1, 1, 1)
@@ -45,14 +45,14 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
         # convert to pixels per micron
         res_x = 1 / (res_x * 1e6)
 
-        distance_element = root.find(".//Distance[@Id='Y']/Value") # type: ignore
+        distance_element = root.find(".//Distance[@Id='Y']/Value")  # type: ignore
         res_y = float(distance_element.text)  # type: ignore
         logger.debug(f"Found Y resolution: {res_y}")
 
         # convert to pixels per micron
         res_y = 1 / (res_y * 1e6)
 
-        distance_element = root.find(".//Distance[@Id='Z']/Value") # type: ignore
+        distance_element = root.find(".//Distance[@Id='Z']/Value")  # type: ignore
         if distance_element is not None and distance_element.text is not None:
             try:
                 res_z = float(distance_element.text)
@@ -61,8 +61,8 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
                 res_z = 1 / (res_z * 1e6)
                 final_resolution = (res_x, res_y, res_z)
                 logger.info(
-                f"Extracted resolution (pixels/micron): X={res_x:.6f}, Y={res_y:.6f}, Z={res_z:.6f}"
-            )
+                    f"Extracted resolution (pixels/micron): X={res_x:.6f}, Y={res_y:.6f}, Z={res_z:.6f}"
+                )
             except (AttributeError, TypeError, ValueError):
                 final_resolution = (res_x, res_y)
                 logger.debug("Error processing Z resolution, using 2D resolution")
@@ -75,7 +75,6 @@ def get_resolution(metadata: ET.Element) -> Tuple[float, ...]:
             logger.info(
                 f"Extracted resolution (pixels/micron): X={res_x:.6f}, Y={res_y:.6f}"
             )
-
 
         return final_resolution
 
@@ -111,13 +110,46 @@ def get_stack_data(czi: CziFile, scene_index: int) -> Tuple[np.ndarray, list]:
         channel_image_data = []
         channel_dims = []
         for channel_index in range(n_channels):
-            image_data, dims = czi.read_image(S=scene_index, Z=plane_index, C=channel_index)
+            image_data, dims = czi.read_image(
+                S=scene_index, Z=plane_index, C=channel_index
+            )
             channel_image_data.append(image_data)
             channel_dims.append(dims)
         full_image_data.append(channel_image_data)
         full_dims.append(channel_dims)
-    
+
     return np.array(full_image_data), full_dims
+
+
+def get_mosaic_data(
+    czi: CziFile, entry_index: int, czi_dims: str, czi_shape: CziShape
+) -> np.ndarray:
+    """Get the mosaic image data from the CZI file."""
+    bboxes = czi.get_all_mosaic_scene_bounding_boxes()
+    channels = []
+    for channel in range(czi_shape[entry_index]["C"][-1]):
+        planes = []
+        if has_stacks(czi_dims):
+            for plane in range(czi_shape[entry_index]["Z"][-1]):
+                mosaic_data = czi.read_mosaic(
+                    region=tuple([bboxes[0].x, bboxes[0].y, bboxes[0].w, bboxes[0].h]),
+                    scale_factor=1,
+                    C=channel,
+                    Z=plane,
+                ).squeeze()
+                planes.append(mosaic_data)
+        else:
+            mosaic_data = czi.read_mosaic(
+                region=tuple([bboxes[0].x, bboxes[0].y, bboxes[0].w, bboxes[0].h]),
+                scale_factor=1,
+                C=channel,
+            ).squeeze()
+            planes.append(mosaic_data)
+        channels.append(planes)
+    img = np.array(channels)
+    if not has_stacks(czi_dims):
+        img = np.swapaxes(img, 0, 1)
+    return img
 
 
 # TODO: Clean this up later
@@ -192,29 +224,25 @@ def process_czi(czi_file: Path, export_params: ExportParams) -> None:
                         img = np.swapaxes(img, 0, 1)
                     logger.info(f"Swapped axes image data shape: {img.shape}")
             else:
-                bboxes = czi.get_all_mosaic_scene_bounding_boxes()
-                channels = []
-                for channel in range(czi_shape[entry_index]["C"][-1]):
-                    planes = []
-                    if has_stacks(czi_dims):
-                        for plane in range(czi_shape[entry_index]["Z"][-1]):
-                            mosaic_data = czi.read_mosaic(region=tuple([bboxes[0].x, bboxes[0].y, bboxes[0].w, bboxes[0].h]), scale_factor=1, C=channel, Z=plane).squeeze()
-                            planes.append(mosaic_data)
-                    else:
-                        mosaic_data = czi.read_mosaic(region=tuple([bboxes[0].x, bboxes[0].y, bboxes[0].w, bboxes[0].h]), scale_factor=1, C=channel).squeeze()
-                        planes.append(mosaic_data)
-                    channels.append(planes)
-                img = np.array(channels)
-                if not has_stacks(czi_dims):
-                    img = np.swapaxes(img, 0, 1)
-                logger.info(f"Swapped axes image data shape: {img.shape}")
-            
+                logger.info(f"Processing mosaic entry {entry_index}")
+                img = get_mosaic_data(czi, entry_index, czi_dims, czi_shape)
+                logger.info(f"Mosaic image data shape: {img.shape}")
+
             export_params.output_dir.mkdir(parents=True, exist_ok=True)
 
-            output_path = export_params.output_dir / f"{Path(czi_file).stem}_{entry_index}.tif"
+            output_path = (
+                export_params.output_dir / f"{Path(czi_file).stem}_{entry_index}.tif"
+            )
             logger.info(f"Exporting to: {output_path}")
 
-            imwrite(output_path, img, resolution=(resolution[0], resolution[1]), resolutionunit=RESUNIT.MICROMETER, imagej=True, metadata={"spacing": resolution, "unit": "micron"})
+            imwrite(
+                output_path,
+                img,
+                resolution=(resolution[0], resolution[1]),
+                resolutionunit=RESUNIT.MICROMETER,
+                imagej=True,
+                metadata={"spacing": resolution, "unit": "micron"},
+            )
 
     except Exception as e:
         logger.error(f"Error processing file {czi_file}: {e}")
@@ -232,7 +260,9 @@ def process_lif(lif_path: Path, export_params: ExportParams) -> None:
 
         resolution = image.scale
         if resolution is None:
-            logger.warning("No resolution found in metadata. Assuming 1 pixel per micron.")
+            logger.warning(
+                "No resolution found in metadata. Assuming 1 pixel per micron."
+            )
             resolution = (1, 1, 1)
         else:
             logger.info(f"Extracted resolution: {resolution}")
@@ -243,11 +273,19 @@ def process_lif(lif_path: Path, export_params: ExportParams) -> None:
 
         # Export to TIF
         export_params.output_dir.mkdir(parents=True, exist_ok=True)
-        output_path = export_params.output_dir / f"{Path(lif_path).stem}_{image.name}.tif"
+        output_path = (
+            export_params.output_dir / f"{Path(lif_path).stem}_{image.name}.tif"
+        )
         logger.info(f"Exporting to: {output_path}")
 
-        imwrite(output_path, img_data, resolution=(resolution[0], resolution[1]), resolutionunit=RESUNIT.MICROMETER, imagej=True, metadata={"spacing": resolution, "unit": "micron"})
-
+        imwrite(
+            output_path,
+            img_data,
+            resolution=(resolution[0], resolution[1]),
+            resolutionunit=RESUNIT.MICROMETER,
+            imagej=True,
+            metadata={"spacing": resolution, "unit": "micron"},
+        )
 
 
 def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
@@ -256,7 +294,7 @@ def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
 
     if isinstance(czi_file, str):
         czi_file = Path(czi_file)
-    
+
     file_extension = czi_file.suffix.lower()
     if file_extension == ".czi":
         process_czi(czi_file, export_params)
@@ -265,5 +303,3 @@ def process_file(czi_file: Pathlike, export_params: ExportParams) -> None:
     else:
         logger.error(f"Unsupported file format: {file_extension}")
         raise ValueError(f"Unsupported file format: {file_extension}")
-
-    

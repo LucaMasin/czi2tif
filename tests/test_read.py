@@ -14,6 +14,7 @@ from czi2tif.read import (
     has_stacks,
     get_scene_data,
     get_stack_data,
+    get_mosaic_data,
     process_czi,
     process_lif,
     process_file,
@@ -147,6 +148,56 @@ class TestReadModule:
 
         assert mock_czi.read_image.call_count == 4  # 2 Z planes * 2 channels
         assert data.shape == (2, 2, 1, 1, 3)  # Z, C, T, C, Y, X
+
+    def test_get_mosaic_data_no_stacks(self):
+        """Test mosaic data extraction without stacks."""
+        # Mock bounding box
+        mock_bbox = Mock()
+        mock_bbox.x = 0
+        mock_bbox.y = 0
+        mock_bbox.w = 100
+        mock_bbox.h = 100
+
+        mock_czi = Mock()
+        mock_czi.get_all_mosaic_scene_bounding_boxes.return_value = [mock_bbox]
+        mock_czi.read_mosaic.return_value = np.array([[[1, 2, 3]]])
+
+        czi_shape = [{"C": (0, 2)}]  # 2 channels
+        czi_dims = "MCYX"  # Mosaic, no Z stacks
+
+        data = get_mosaic_data(mock_czi, 0, czi_dims, czi_shape)
+
+        mock_czi.get_all_mosaic_scene_bounding_boxes.assert_called_once()
+        # Should be called twice for 2 channels
+        assert mock_czi.read_mosaic.call_count == 2
+        assert data.shape == (1, 2, 3)  # After axis swap: (planes, channels, data_dims)
+
+    def test_get_mosaic_data_with_stacks(self):
+        """Test mosaic data extraction with stacks."""
+        # Mock bounding box
+        mock_bbox = Mock()
+        mock_bbox.x = 0
+        mock_bbox.y = 0
+        mock_bbox.w = 100
+        mock_bbox.h = 100
+
+        mock_czi = Mock()
+        mock_czi.get_all_mosaic_scene_bounding_boxes.return_value = [mock_bbox]
+        mock_czi.read_mosaic.return_value = np.array([[[1, 2, 3]]])
+
+        czi_shape = [{"C": (0, 2), "Z": (0, 3)}]  # 2 channels, 3 Z planes
+        czi_dims = "MCZYX"  # Mosaic with Z stacks
+
+        data = get_mosaic_data(mock_czi, 0, czi_dims, czi_shape)
+
+        mock_czi.get_all_mosaic_scene_bounding_boxes.assert_called_once()
+        # Should be called 6 times (2 channels * 3 Z planes)
+        assert mock_czi.read_mosaic.call_count == 6
+        assert data.shape == (
+            2,
+            3,
+            3,
+        )  # No axis swap with stacks: (channels, planes, data_dims)
 
     @patch("czi2tif.read.read_czi")
     @patch("czi2tif.read.get_resolution")
