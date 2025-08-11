@@ -50,5 +50,19 @@
             "module": "czi2tif",
             "args": ["/home/luca/KULonedrive/Confocal/2025 08 05 Visufarma test/overviews", "-o", "./test_output", "--verbose"]
         },
+        {
+            "name": "Match files",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "czi2tif",
+            "args": [
+                "/home/luca/KULonedrive/Confocal/2025 08 05 Visufarma test/overviews",
+                "-o",
+                "./test_output",
+                "-m",
+                "Veh",
+                "--verbose"
+            ]
+        },
     ]
 }
